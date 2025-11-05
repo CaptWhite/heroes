@@ -23,6 +23,51 @@ jobs:
           # Debe estar almacenada en Secrets de GitHub (ej: SSH_PRIVATE_KEY)
           ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
 
- 
+      # --- Despliegue Remoto en el VPS ---
+      - name: 🖥️ Desplegar en VPS
+        # Usa el cliente 'ssh' directamente para ejecutar comandos remotos
+        env:
+          # Variables de entorno para la conexión SSH.
+          # Deben estar almacenadas en Secrets de GitHub (ej: VPS_HOST, VPS_USER)
+          HOST: ${{ secrets.VPS_HOST }}
+          USER: ${{ secrets.VPS_USER }}
+        run: |
+          echo "Conectando al VPS..."
+          
+          # Directorio donde se clonará/actualizará el código en el VPS.
+          DEPLOY_PATH="/home/$USER/heroes-app"
+          REPO_URL="https://github.com/${{ github.repository }}.git"
+          
+          # Comando SSH para ejecutar múltiples acciones en el servidor
+          ssh -o StrictHostKeyChecking=no $USER@$HOST << 'EOF'
+            # (Comandos ejecutados dentro del VPS)
+            
+            # Crear el directorio si no existe
+            mkdir -p $DEPLOY_PATH
+            cd $DEPLOY_PATH
+
+            # 1. Actualizar el código
+            if [ -d .git ]; then
+              echo "Pulling latest changes..."
+              git pull origin main
+            else
+              echo "Cloning repository..."
+              git clone $REPO_URL .
+            fi
+
+            # 2. Construir y Desplegar con Docker Compose
+            # -d: modo detached (en segundo plano)
+            # --build: reconstruye las imágenes (necesario tras un cambio en el código/Dockerfiles)
+            # --force-recreate: fuerza la recreación de los contenedores
+            echo "Running docker-compose up --build..."
+            docker-compose up -d --build --force-recreate
+
+            # 3. Limpiar imágenes antiguas (opcional, para liberar espacio)
+            # docker image prune -f
+            
+            echo "Despliegue finalizado."
+            
+          EOF
+          
       - name: ✅ Verificar Estado del Despliegue (Opcional)
         run: echo "El workflow se ha completado. Verifica tu VPS en http://${{ secrets.VPS_HOST }}:8088"
