@@ -14,6 +14,15 @@ jobs:
     steps:
       - name: ⬇️ Checkout del código
         uses: actions/checkout@v4
-          
+        
+      # --- Configuración SSH para Conexión al VPS ---
+      - name: 🔑 Configurar SSH
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          # Clave privada SSH de tu usuario en el VPS.
+          # Debe estar almacenada en Secrets de GitHub (ej: SSH_PRIVATE_KEY)
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+ 
       - name: ✅ Verificar Estado del Despliegue (Opcional)
         run: echo "El workflow se ha completado. Verifica tu VPS en http://${{ secrets.VPS_HOST }}:8088"
