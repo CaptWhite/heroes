@@ -10,6 +10,9 @@ env:
   # Variables de entorno comunes para los paths
   BACKEND_DIR: backend
   FRONTEND_DIR: frontend
+  # Registry and repository for container images
+  REGISTRY: ghcr.io
+  REPOSITORY: ${{ github.repository }}
 
 jobs:
   # 1. Integración Continua (Tests, Lint, Build & Push de Imágenes)
