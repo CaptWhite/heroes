@@ -37,15 +37,17 @@ jobs:
           HOST: ${{ secrets.SSH_HOST }}
           USER: ${{ secrets.SSH_USER }}
         run: |
-      
-          # El comando remoto se envía como una única cadena.
-          ssh -o StrictHostKeyChecking=no $USER@$HOST "
-            # Navegación y comandos remotos (se ejecutan en el VPS)
+          # 1. Definimos la CADENA DE COMANDOS REMOTOS en una variable local
+          # Usamos comillas simples (') para proteger los comandos de Docker
+          # de cualquier expansión local.
+          REMOTE_COMMANDS='
             cd /home/$USER/workspaces/heroes &&
-            
             docker compose pull &&
             docker compose down &&
             docker compose --file docker-compose-prod.yml up -d &&
-
-            echo 'Despliegue de contenedores finalizado y levantado.'
-          "
+            echo "Despliegue de contenedores finalizado y levantado."
+          '
+          # 2. Ejecutamos SSH de forma explícita
+          # Usamos la sintaxis: ssh user@host "comandos"
+          ssh -o StrictHostKeyChecking=no "${USER}@${HOST}" "${REMOTE_COMMANDS}"
+          
