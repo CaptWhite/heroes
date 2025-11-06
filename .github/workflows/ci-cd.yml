@@ -25,28 +25,29 @@ jobs:
 
       # --- Despliegue Remoto en el VPS ---
       # Paso 4: Desplegar
+# Job de Despliegue (Job 'deploy')
+# ...
+
+      # Paso 4: Desplegar
       - name: 🚀 Deploy to VPSs via SSH
         env:
           HOST: ${{ secrets.SSH_HOST }}
           USER: ${{ secrets.SSH_USER }}
           VITE_API_URL: ${{ secrets.VITE_API_URL }}
         run: |
+          # La clave es que el 'EOF' debe estar solo en una línea,
+          # y todos los comandos remotos deben estar tabulados o indentados
+          # de manera uniforme, pero el 'EOF' final NO debe tener indentación.
           ssh -o StrictHostKeyChecking=no $USER@$HOST << 'EOF'
-            # --- Comandos ejecutados en el VPS ---
-            
-            # Navegación al directorio de la aplicación
+            # Comandos ejecutados en el VPS
             cd /home/$USER/workspaces/heroes
             
-            # 1. Descargar las nuevas imágenes del registro (V2)
             docker compose pull
-            
-            # 2. Detener los contenedores anteriores
             docker compose down
-            
-            # 3. Levantar los nuevos contenedores en modo detached (-d)
-            # USAMOS EL ARCHIVO docker-compose-prod.yml que sincronizamos antes.
             docker compose --file docker-compose-prod.yml up -d
-            
+
+            echo "Despliegue de contenedores finalizado y levantado."
+          EOF
             # Confirma que el despliegue terminó
             echo "Despliegue de contenedores finalizado y levantado."
           EOF
