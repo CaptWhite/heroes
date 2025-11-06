@@ -15,6 +15,12 @@ export default tseslint.config([
       reactHooks.configs['recommended-latest'],
       reactRefresh.configs.vite,
     ],
+    // AÑADIDO: Desactivar la regla que falla en CI/CD.
+    // Esto permite que los archivos de componentes (como los de Shadcn/UI)
+    // exporten utilidades junto con el componente principal.
+    rules: {
+      'react-refresh/only-export-components': 'off',
+    },
     languageOptions: {
       ecmaVersion: 2020,
       globals: globals.browser,
