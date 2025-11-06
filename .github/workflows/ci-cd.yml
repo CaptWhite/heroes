@@ -76,27 +76,4 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: ⬇️ Checkout code
-        uses: actions/checkout@v4
-
-      - name: 📤 Sync docker-compose.yml file to VPS
-        uses: upciti/scp-action@v2.2.0
-        with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          source: 'docker-compose-prod.yml'
-          target: '/home/${{ secrets.SSH_USER }}/workspaces/heroes/'
-
-      - name: 🚀 Deploy containers and restart service
-        uses: appleboy/ssh-action@v1.0.1
-        with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          script: |
-            echo "Conexión SSH establecida, iniciando despliegue."
-            cd /home/${{ secrets.SSH_USER }}/workspaces/heroes
-            docker compose pull
-            docker compose down
-            docker compose -f docker-compose-prod.yml up -d
-            echo "✅ Despliegue de contenedores finalizado y levantado."
+        uses: actions/checkout
