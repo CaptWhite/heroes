@@ -8,46 +8,55 @@ on:
   workflow_dispatch: # Permite ejecución manual desde GitHub UI
 
 jobs:
-  deploy:
-    runs-on: ubuntu-latest # Ejecuta en un runner hospedado por GitHub
+deploy:
+  needs: build-and-push
+  runs-on: ubuntu-latest
+  steps:
+    - name: ⬇️ Checkout code
+      uses: actions/checkout@v4
 
-    steps:
-      - name: ⬇️ Checkout del código
-        uses: actions/checkout@v4
+    # 1. Add SSH known hosts (Necesario para las Actions de conexión)
+    - name: 🔐 Add SSH known hosts
+      env:
+        HOST: ${{ secrets.SSH_HOST }}
+      run: |
+        mkdir -p ~/.ssh
+        ssh-keyscan "$HOST" >> ~/.ssh/known_hosts
+        chmod 644 ~/.ssh/known_hosts
+
+    # 2. Set up SSH agent (Necesario para todas las conexiones)
+    - name: 🔑 Set up SSH agent
+      uses: webfactory/ssh-agent@v0.9.0
+      with:
+        ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
         
-      # --- Configuración SSH para Conexión al VPS ---
-      - name: 🔑 Configurar SSH
-        uses: webfactory/ssh-agent@v0.9.0
-        with:
-          # Clave privada SSH de tu usuario en el VPS.
-          # Debe estar almacenada en Secrets de GitHub (ej: SSH_PRIVATE_KEY)
-          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
-
-      # --- Despliegue Remoto en el VPS ---
-      # Paso 4: Desplegar
-# Job de Despliegue (Job 'deploy')
-# ...
-
-# En tu archivo ci-cd.yml
-# ...
-
-      # Paso 4: Desplegar
-      - name: 🚀 Deploy to VPSs via SSH
-        env:
-          HOST: ${{ secrets.SSH_HOST }}
-          USER: ${{ secrets.SSH_USER }}
-        run: |
-          # 1. Definimos la CADENA DE COMANDOS REMOTOS en una variable local
-          # Usamos comillas simples (') para proteger los comandos de Docker
-          # de cualquier expansión local.
-          REMOTE_COMMANDS='
-            cd /home/$USER/workspaces/heroes &&
-            docker compose pull &&
-            docker compose down &&
-            docker compose --file docker-compose-prod.yml up -d &&
-            echo "Despliegue de contenedores finalizado y levantado."
-          '
-          # 2. Ejecutamos SSH de forma explícita
-          # Usamos la sintaxis: ssh user@host "comandos"
-          ssh -o StrictHostKeyChecking=no "${USER}@${HOST}" "${REMOTE_COMMANDS}"
+    # 3. Sincronizar el archivo de Compose (SCP Action dedicada)
+    # Transfiere el docker-compose-prod.yml del runner a tu VPS
+    - name: 📤 Sync docker-compose.yml file to VPS
+      uses: upciti/scp-action@v2
+      with:
+        host: ${{ secrets.SSH_HOST }}
+        username: ${{ secrets.SSH_USER }}
+        key: ${{ secrets.SSH_PRIVATE_KEY }}
+        source: ./docker-compose-prod.yml
+        # El destino es el directorio de la aplicación en el VPS
+        target: /home/${{ secrets.SSH_USER }}/workspaces/heroes/docker-compose-prod.yml
+    
+    # 4. Ejecutar comandos de Docker (SSH Action dedicada)
+    # Ejecuta el pull/down/up de forma segura, sin errores de Bash
+    - name: 🚀 Deploy containers and restart service
+      uses: appleboy/ssh-action@v1.0.3
+      with:
+        host: ${{ secrets.SSH_HOST }}
+        username: ${{ secrets.SSH_USER }}
+        key: ${{ secrets.SSH_PRIVATE_KEY }}
+        script: |
+          # Navegación al directorio de la aplicación
+          cd /home/${{ secrets.SSH_USER }}/workspaces/heroes
           
+          # Comandos de Docker (usando 'docker compose' V2)
+          docker compose pull
+          docker compose down
+          docker compose --file docker-compose-prod.yml up -d
+
+          echo "✅ Despliegue de contenedores finalizado en VPS."
