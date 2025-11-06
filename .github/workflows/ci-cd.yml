@@ -1,33 +1,25 @@
 name: CI/CD Pipeline - Consolidada
 
-# Dispara en push a main o manualmente
 on:
   push:
     branches: [ "main" ]
   workflow_dispatch:
 
 env:
-  # Variables de entorno comunes para los paths
   BACKEND_DIR: backend
   FRONTEND_DIR: frontend
-  # Registry and repository for container images
   REGISTRY: ghcr.io
-  REPOSITORY: ${{ github.repository }}
+  USERNAME: captwhite
+  FRONTEND_IMAGE: ghcr.io/captwhite/heroes-frontend
+  BACKEND_IMAGE: ghcr.io/captwhite/heroes-backend
 
 jobs:
-  # 1. Integración Continua (Tests, Lint, Build & Push de Imágenes)
-  # Este job solo se centra ahora en Node.js y Docker.
   ci_build:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        node-version: [18.x] # Se eliminó la dependencia de Python
-    
     steps:
       - name: ⬇️ Checkout code
         uses: actions/checkout@v4
 
-      # --- 1. Configuración de Node.js (Frontend) ---
       - name: 🛠️ Set up Node.js
         uses: actions/setup-node@v4
         with:
@@ -38,58 +30,56 @@ jobs:
           cd ${{ env.FRONTEND_DIR }}
           npm ci
           npm run lint
-      
-      # --- 2. Docker Login ---
+
       - name: 🔑 Log in to GitHub Container Registry
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
+          username: ${{ env.USERNAME }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-     # --- PASO AÑADIDO: Login a Docker Hub para imágenes base ---
       - name: 🔑 Log in to Docker Hub
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}     
-          
-      # --- 3. Construcción y Etiquetado ---
-      - name: ⚙️ Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3    
+          password: ${{ secrets.DOCKER_PASSWORD }}
 
+      - name: ⚙️ Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # 🏗️ Build and Push Frontend Image
       - name: 🏗️ Build and Push Frontend Image
         uses: docker/build-push-action@v5
         with:
           context: ./frontend
           file: ./frontend/Dockerfile
           push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          tags: |
+            ${{ env.FRONTEND_IMAGE }}:latest
+            ${{ env.FRONTEND_IMAGE }}:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-            
-      # --- 4. Construcción y Push ---
-      - name: 🏗️ Build and Push Frontend Image
+
+      # 🏗️ Build and Push Backend Image
+      - name: 🏗️ Build and Push Backend Image
         uses: docker/build-push-action@v5
         with:
-          context: ./frontend
-          file: ./frontend/Dockerfile
+          context: ./backend
+          file: ./backend/Dockerfile
           push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          tags: |
+            ${{ env.BACKEND_IMAGE }}:latest
+            ${{ env.BACKEND_IMAGE }}:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-  # 2. Despliegue (CD)
-  
+
   deploy:
-    needs: ci_build # Depende del job consolidado
+    needs: ci_build
     runs-on: ubuntu-latest
     steps:
       - name: ⬇️ Checkout code
         uses: actions/checkout@v4
 
-      # --- 1. Sincronizar archivo Docker Compose ---
       - name: 📤 Sync docker-compose.yml file to VPS
         uses: upciti/scp-action@v2.2.0
         with:
@@ -99,7 +89,6 @@ jobs:
           source: 'docker-compose-prod.yml'
           target: '/home/${{ secrets.SSH_USER }}/workspaces/heroes/'
 
-      # --- 2. Despliegue Seguro por SSH (Solución al error 'usage: ssh') ---
       - name: 🚀 Deploy containers and restart service
         uses: appleboy/ssh-action@v1.0.1
         with:
@@ -108,16 +97,8 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
             echo "Conexión SSH establecida, iniciando despliegue."
-            # Moverse al directorio del proyecto
             cd /home/${{ secrets.SSH_USER }}/workspaces/heroes
-            
-            # 1. Descargar nuevas imágenes
             docker compose pull
-            
-            # 2. Detener y eliminar contenedores anteriores
             docker compose down
-            
-            # 3. Levantar los nuevos contenedores en modo detached
             docker compose -f docker-compose-prod.yml up -d
-            
             echo "✅ Despliegue de contenedores finalizado y levantado."
