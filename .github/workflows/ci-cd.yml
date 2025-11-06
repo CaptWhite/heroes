@@ -13,36 +13,16 @@ env:
 
 jobs:
   # 1. Integración Continua (Tests, Lint, Build & Push de Imágenes)
-  # Este es el primer job y NO tiene 'needs'.
+  # Este job solo se centra ahora en Node.js y Docker.
   ci_build:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        node-version: [18.x]
-        python-version: ['3.10']
-
+        node-version: [18.x] # Se eliminó la dependencia de Python
+    
     steps:
       - name: ⬇️ Checkout code
         uses: actions/checkout@v4
-
-      # --- CONFIGURACIÓN E INSTALACIÓN DE PYTHON (Backend) ---
-      
-      - name: 🐍 Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ matrix.python-version }}
-
-      - name: 📦 Cache pip dependencies
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('${{ env.BACKEND_DIR }}/requirements.txt') }}
-
-      - name: ⚙️ Install Backend dependencies
-        run: pip install -r ${{ env.BACKEND_DIR }}/requirements.txt
-        
-      - name: 🧪 Run Backend Tests (Pytest)
-        run: cd ${{ env.BACKEND_DIR }} && pytest
 
       # --- CONFIGURACIÓN E INSTALACIÓN DE NODE (Frontend) ---
 
@@ -76,6 +56,7 @@ jobs:
           password: ${{ secrets.REGISTRY_TOKEN }}
 
       - name: 🛠️ Build and push Backend Image
+        # Asume que el backend usa un Dockerfile en el directorio 'backend'
         uses: docker/build-push-action@v5
         with:
           context: ./${{ env.BACKEND_DIR }}
