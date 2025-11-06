@@ -1,0 +1,32 @@
+
+services:
+  heroes-backend:
+    container_name: "heroes-backend"
+    image: captwhite/heroes-backend:latest
+    networks:
+      - webnet-heroes
+
+
+  heroes-frontend:
+    container_name: "heroes-frontend"
+    image: captwhite/heroes-frontend:latest
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.heroes-http.entrypoints=web"
+      - "traefik.http.routers.heroes-http.rule=Host(`heroes.captwhite.com`)"
+      - "traefik.http.routers.heroes-http.middlewares=redirect-to-https@docker"
+      - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"
+      #
+      - "traefik.http.routers.heroes.entrypoints=websecure"
+      - "traefik.http.routers.heroes.rule=Host(`heroes.captwhite.com`)"
+      - "traefik.http.routers.heroes.tls=true"
+      - "traefik.http.routers.heroes.tls.certresolver=myresolver"
+      - "traefik.http.services.heroes.loadbalancer.server.port=8080"
+    depends_on:
+      - heroes-backend
+    networks:
+      - webnet-heroes
+    
+networks:
+  webnet-heroes:
+    external: true
