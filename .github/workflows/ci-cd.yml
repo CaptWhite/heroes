@@ -8,55 +8,56 @@ on:
   workflow_dispatch: # Permite ejecución manual desde GitHub UI
 
 jobs:
-deploy:
-  needs: build-and-push
-  runs-on: ubuntu-latest
-  steps:
-    - name: ⬇️ Checkout code
-      uses: actions/checkout@v4
+  deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
+      - name: ⬇️ Checkout code
+        uses: actions/checkout@v4
 
-    # 1. Add SSH known hosts (Necesario para las Actions de conexión)
-    - name: 🔐 Add SSH known hosts
-      env:
-        HOST: ${{ secrets.SSH_HOST }}
-      run: |
-        mkdir -p ~/.ssh
-        ssh-keyscan "$HOST" >> ~/.ssh/known_hosts
-        chmod 644 ~/.ssh/known_hosts
+      # 1. Add SSH known hosts (Necesario para las Actions de conexión)
+      - name: 🔐 Add SSH known hosts
+        env:
+          HOST: ${{ secrets.SSH_HOST }}
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan "$HOST" >> ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
 
-    # 2. Set up SSH agent (Necesario para todas las conexiones)
-    - name: 🔑 Set up SSH agent
-      uses: webfactory/ssh-agent@v0.9.0
-      with:
-        ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
-        
-    # 3. Sincronizar el archivo de Compose (SCP Action dedicada)
-    # Transfiere el docker-compose-prod.yml del runner a tu VPS
-    - name: 📤 Sync docker-compose.yml file to VPS
-      uses: upciti/scp-action@v2
-      with:
-        host: ${{ secrets.SSH_HOST }}
-        username: ${{ secrets.SSH_USER }}
-        key: ${{ secrets.SSH_PRIVATE_KEY }}
-        source: ./docker-compose-prod.yml
-        # El destino es el directorio de la aplicación en el VPS
-        target: /home/${{ secrets.SSH_USER }}/workspaces/heroes/docker-compose-prod.yml
-    
-    # 4. Ejecutar comandos de Docker (SSH Action dedicada)
-    # Ejecuta el pull/down/up de forma segura, sin errores de Bash
-    - name: 🚀 Deploy containers and restart service
-      uses: appleboy/ssh-action@v1.0.3
-      with:
-        host: ${{ secrets.SSH_HOST }}
-        username: ${{ secrets.SSH_USER }}
-        key: ${{ secrets.SSH_PRIVATE_KEY }}
-        script: |
-          # Navegación al directorio de la aplicación
-          cd /home/${{ secrets.SSH_USER }}/workspaces/heroes
+      # 2. Set up SSH agent (Necesario para todas las conexiones)
+      - name: 🔑 Set up SSH agent
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
           
-          # Comandos de Docker (usando 'docker compose' V2)
-          docker compose pull
-          docker compose down
-          docker compose --file docker-compose-prod.yml up -d
+      # 3. Sincronizar el archivo de Compose (SCP Action dedicada)
+      # Transfiere el docker-compose-prod.yml del runner a tu VPS
+      - name: 📤 Sync docker-compose.yml file to VPS
+        uses: upciti/scp-action@v2
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          source: ./docker-compose-prod.yml
+          # El destino es el directorio de la aplicación en el VPS
+          target: /home/${{ secrets.SSH_USER }}/workspaces/heroes/docker-compose-prod.yml
+      
+      # 4. Ejecutar comandos de Docker (SSH Action dedicada)
+      # Ejecuta el pull/down/up de forma segura, sin errores de Bash
+      - name: 🚀 Deploy containers and restart service
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            # Navegación al directorio de la aplicación
+            cd /home/${{ secrets.SSH_USER }}/workspaces/heroes
+            
+            # Comandos de Docker (usando 'docker compose' V2)
+            docker compose pull
+            docker compose down
+            docker compose --file docker-compose-prod.yml up -d
 
-          echo "✅ Despliegue de contenedores finalizado en VPS."
+            echo "✅ Despliegue de contenedores finalizado en VPS."
+
