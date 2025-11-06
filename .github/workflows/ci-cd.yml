@@ -1,4 +1,4 @@
-name: CI/CD Pipeline - Consolidada
+name: CI/CD Pipeline - Docker Hub
 
 on:
   push:
@@ -8,10 +8,9 @@ on:
 env:
   BACKEND_DIR: backend
   FRONTEND_DIR: frontend
-  REGISTRY: ghcr.io
-  USERNAME: captwhite
-  FRONTEND_IMAGE: ghcr.io/CaptWhite/heroes-frontend
-  BACKEND_IMAGE: ghcr.io/CaptWhite/heroes-backend
+  DOCKERHUB_USERNAME: captwhite
+  FRONTEND_IMAGE: captwhite/heroes-frontend
+  BACKEND_IMAGE: captwhite/heroes-backend
 
 jobs:
   ci_build:
@@ -31,17 +30,10 @@ jobs:
           npm ci
           npm run lint
 
-      - name: 🔑 Log in to GitHub Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ env.USERNAME }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
       - name: 🔑 Log in to Docker Hub
         uses: docker/login-action@v3
         with:
-          username: ${{ secrets.DOCKER_USERNAME }}
+          username: ${{ env.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
       - name: ⚙️ Set up Docker Buildx
@@ -77,3 +69,26 @@ jobs:
     steps:
       - name: ⬇️ Checkout code
         uses: actions/checkout@v4
+
+      - name: 📤 Sync docker-compose.yml file to VPS
+        uses: upciti/scp-action@v2.2.0
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          source: 'docker-compose-prod.yml'
+          target: '/home/${{ secrets.SSH_USER }}/workspaces/heroes/'
+
+      - name: 🚀 Deploy containers and restart service
+        uses: appleboy/ssh-action@v1.0.1
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            echo "Conexión SSH establecida, iniciando despliegue."
+            cd /home/${{ secrets.SSH_USER }}/workspaces/heroes
+            docker compose pull
+            docker compose down
+            docker compose -f docker-compose-prod.yml up -d
+            echo "✅ Despliegue de contenedores finalizado y levantado."
