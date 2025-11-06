@@ -28,26 +28,24 @@ jobs:
 # Job de Despliegue (Job 'deploy')
 # ...
 
+# En tu archivo ci-cd.yml
+# ...
+
       # Paso 4: Desplegar
       - name: 🚀 Deploy to VPSs via SSH
         env:
           HOST: ${{ secrets.SSH_HOST }}
           USER: ${{ secrets.SSH_USER }}
-          VITE_API_URL: ${{ secrets.VITE_API_URL }}
         run: |
-          # La clave es que el 'EOF' debe estar solo en una línea,
-          # y todos los comandos remotos deben estar tabulados o indentados
-          # de manera uniforme, pero el 'EOF' final NO debe tener indentación.
-          ssh -o StrictHostKeyChecking=no $USER@$HOST << 'EOF'
-            # Comandos ejecutados en el VPS
-            cd /home/$USER/workspaces/heroes
+      
+          # El comando remoto se envía como una única cadena.
+          ssh -o StrictHostKeyChecking=no $USER@$HOST "
+            # Navegación y comandos remotos (se ejecutan en el VPS)
+            cd /home/$USER/workspaces/heroes &&
             
-            docker compose pull
-            docker compose down
-            docker compose --file docker-compose-prod.yml up -d
+            docker compose pull &&
+            docker compose down &&
+            docker compose --file docker-compose-prod.yml up -d &&
 
-            echo "Despliegue de contenedores finalizado y levantado."
-          EOF
-            # Confirma que el despliegue terminó
-            echo "Despliegue de contenedores finalizado y levantado."
-          EOF
+            echo 'Despliegue de contenedores finalizado y levantado.'
+          "
