@@ -62,7 +62,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ env.REPOSITORY }}
+          images: ghcr.io/captwhite/heroes
           tags: |
             type=sha,prefix=${{ env.FRONTEND_DIR }}-
             type=raw,value=${{ env.FRONTEND_DIR }}-latest
