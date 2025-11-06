@@ -56,16 +56,18 @@ jobs:
           
       # --- 3. Construcción y Etiquetado ---
       - name: ⚙️ Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3 
+        uses: docker/setup-buildx-action@v3    
 
-      - name: 🏷️ Determine image tag
-        id: meta
-        uses: docker/metadata-action@v5
+      - name: 🏗️ Build and Push Frontend Image
+        uses: docker/build-push-action@v5
         with:
-          images: ghcr.io/captwhite/heroes
-          tags: |
-            type=sha,prefix=${{ env.FRONTEND_DIR }}-
-            type=raw,value=${{ env.FRONTEND_DIR }}-latest
+          context: ./frontend
+          file: ./frontend/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
             
       # --- 4. Construcción y Push ---
       - name: 🏗️ Build and Push Frontend Image
