@@ -24,56 +24,50 @@ jobs:
       - name: ⬇️ Checkout code
         uses: actions/checkout@v4
 
-      # --- CONFIGURACIÓN E INSTALACIÓN DE NODE (Frontend) ---
-
-      - name: 🟢 Set up Node.js ${{ matrix.node-version }}
+      # --- 1. Configuración de Node.js (Frontend) ---
+      - name: 🛠️ Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: ${{ matrix.node-version }}
+          node-version: '20'
 
-      - name: 📦 Cache npm dependencies
-        uses: actions/cache@v4
-        with:
-          path: ${{ env.FRONTEND_DIR }}/node_modules
-          key: ${{ runner.os }}-npm-${{ hashFiles('${{ env.FRONTEND_DIR }}/package.json') }}
-
-      - name: ⚙️ Install Frontend dependencies (npm ci)
-        run: cd ${{ env.FRONTEND_DIR }} && npm ci
-
-      - name: 🔍 Run Frontend Linting
-        run: cd ${{ env.FRONTEND_DIR }} && npm run lint
-
-      # --- BUILD Y PUSH DE DOCKER ---
+      - name: 📦 Install Frontend dependencies and Lint
+        run: |
+          cd ${{ env.FRONTEND_DIR }}
+          npm ci
+          npm run lint
       
-      - name: 🐳 Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: 🔑 Log in to Registry
+      # --- 2. Docker Login ---
+      - name: 🔑 Log in to GitHub Container Registry
         uses: docker/login-action@v3
         with:
-          registry: ${{ secrets.REGISTRY_URL }}
-          username: ${{ secrets.REGISTRY_USERNAME }}
-          password: ${{ secrets.REGISTRY_TOKEN }}
-
-      - name: 🛠️ Build and push Backend Image
-        # Asume que el backend usa un Dockerfile en el directorio 'backend'
-        uses: docker/build-push-action@v5
-        with:
-          context: ./${{ env.BACKEND_DIR }}
-          push: true
-          tags: |
-            ${{ secrets.REGISTRY_URL }}/captwhite/astro-backend:${{ github.sha }}
-            ${{ secrets.REGISTRY_URL }}/captwhite/astro-backend:latest
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
           
-      - name: 🛠️ Build and push Frontend Image
+      # --- 3. Construcción y Etiquetado ---
+      - name: ⚙️ Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: 🏷️ Determine image tag
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.REPOSITORY }}
+          tags: |
+            type=sha,prefix=${{ env.FRONTEND_DIR }}-
+            type=raw,value=${{ env.FRONTEND_DIR }}-latest
+            
+      # --- 4. Construcción y Push ---
+      - name: 🏗️ Build and Push Frontend Image
         uses: docker/build-push-action@v5
         with:
-          context: ./${{ env.FRONTEND_DIR }}
+          context: .
+          file: ${{ env.FRONTEND_DIR }}/Dockerfile
           push: true
-          tags: |
-            ${{ secrets.REGISTRY_URL }}/captwhite/astro-frontend:${{ github.sha }}
-            ${{ secrets.REGISTRY_URL }}/captwhite/astro-frontend:latest
-
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
   # 2. Despliegue (CD)
   
   deploy:
@@ -83,46 +77,35 @@ jobs:
       - name: ⬇️ Checkout code
         uses: actions/checkout@v4
 
-      # 1. Add SSH known hosts (Necesario para las Actions de conexión)
-      - name: 🔐 Add SSH known hosts
-        env:
-          HOST: ${{ secrets.SSH_HOST }}
-        run: |
-          mkdir -p ~/.ssh
-          ssh-keyscan "$HOST" >> ~/.ssh/known_hosts
-          chmod 644 ~/.ssh/known_hosts
-
-      # 2. Set up SSH agent (Necesario para todas las conexiones)
-      - name: 🔑 Set up SSH agent
-        uses: webfactory/ssh-agent@v0.9.0
-        with:
-          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
-          
-      # 3. Sincronizar el archivo de Compose (SCP Action dedicada)
+      # --- 1. Sincronizar archivo Docker Compose ---
       - name: 📤 Sync docker-compose.yml file to VPS
-        uses: upciti/scp-action@v2
+        uses: upciti/scp-action@v2.2.0
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          source: ./docker-compose-prod.yml
-          # El destino es el directorio de la aplicación en el VPS
-          target: /home/${{ secrets.SSH_USER }}/workspaces/heroes/docker-compose-prod.yml
-      
-      # 4. Ejecutar comandos de Docker (SSH Action dedicada)
+          source: 'docker-compose-prod.yml'
+          target: '/home/${{ secrets.SSH_USER }}/workspaces/heroes/'
+
+      # --- 2. Despliegue Seguro por SSH (Solución al error 'usage: ssh') ---
       - name: 🚀 Deploy containers and restart service
-        uses: appleboy/ssh-action@v1.0.3
+        uses: appleboy/ssh-action@v1.0.1
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
-            # Navegación al directorio de la aplicación
+            echo "Conexión SSH establecida, iniciando despliegue."
+            # Moverse al directorio del proyecto
             cd /home/${{ secrets.SSH_USER }}/workspaces/heroes
             
-            # Comandos de Docker (usando 'docker compose' V2)
+            # 1. Descargar nuevas imágenes
             docker compose pull
+            
+            # 2. Detener y eliminar contenedores anteriores
             docker compose down
-            docker compose --file docker-compose-prod.yml up -d
-
-            echo "✅ Despliegue de contenedores finalizado en VPS."
+            
+            # 3. Levantar los nuevos contenedores en modo detached
+            docker compose -f docker-compose-prod.yml up -d
+            
+            echo "✅ Despliegue de contenedores finalizado y levantado."
