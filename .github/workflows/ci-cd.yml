@@ -10,8 +10,8 @@ env:
   FRONTEND_DIR: frontend
   REGISTRY: ghcr.io
   USERNAME: captwhite
-  FRONTEND_IMAGE: ghcr.io/captwhite/heroes-frontend
-  BACKEND_IMAGE: ghcr.io/captwhite/heroes-backend
+  FRONTEND_IMAGE: ghcr.io/CaptWhite/heroes-frontend
+  BACKEND_IMAGE: ghcr.io/CaptWhite/heroes-backend
 
 jobs:
   ci_build:
